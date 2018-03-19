@@ -307,7 +307,7 @@ namespace FM {
 
                 draw_when_idle ();
             });
-            model = GLib.Object.@new (FM.ListModel.get_type (), null) as FM.ListModel;
+            model = new FM.ListModel ();
             Preferences.settings.bind ("single-click", this, "single_click_mode", SettingsBindFlags.GET);
             Preferences.settings.bind ("show-remote-thumbnails", this, "show_remote_thumbnails", SettingsBindFlags.GET);
 
@@ -456,17 +456,13 @@ namespace FM {
         }
 
         private void select_file_paths (GLib.List<GOF.File> files, GLib.File? focus) {
-
-            Gtk.TreeIter iter;
             disconnect_tree_signals (); /* Avoid unnecessary signal processing */
             unselect_all ();
 
-            uint count = 0;
-
-            foreach (GOF.File f in files) {
+            foreach (unowned GOF.File f in files) {
+                Gtk.TreeIter? iter;
                 /* Not all files selected in previous view  (e.g. expanded tree view) may appear in this one. */
-               if (model.get_first_iter_for_file (f, out iter)) {
-                    count++;
+                if (model.get_first_iter_for_file (f, out iter)) {
                     var path = model.get_path (iter);
                     select_path (path, focus != null && focus.equal (f.location));  /* Cursor follows if matches focus location*/
                 }
@@ -558,7 +554,7 @@ namespace FM {
         }
 
         public void select_gof_file (GOF.File file) {
-            var iter = Gtk.TreeIter ();
+            Gtk.TreeIter? iter;
             if (!model.get_first_iter_for_file (file, out iter))
                 return; /* file not in model */
 
@@ -567,7 +563,7 @@ namespace FM {
         }
 
         protected void select_and_scroll_to_gof_file (GOF.File file) {
-            var iter = Gtk.TreeIter ();
+            Gtk.TreeIter? iter;
             if (!model.get_first_iter_for_file (file, out iter))
                 return; /* file not in model */
 
@@ -576,8 +572,7 @@ namespace FM {
         }
 
         protected void add_gof_file_to_selection (GOF.File file) {
-            var iter = Gtk.TreeIter ();
-
+            Gtk.TreeIter? iter;
             if (!model.get_first_iter_for_file (file, out iter))
                 return; /* file not in model */
 
@@ -1158,7 +1153,7 @@ namespace FM {
 
             if (model.get_sort_column_id (out sort_column_id, out sort_order)) {
                 if (col_name != null)
-                    sort_column_id = get_column_id_from_string (col_name);
+                    sort_column_id = FM.ListModel.ColumnID.from_string (col_name);
 
                 if (reverse) {
                     if (sort_order == Gtk.SortType.ASCENDING)
@@ -1326,7 +1321,7 @@ namespace FM {
             if (slot.directory.can_load) {
                 is_writable = slot.directory.file.is_writable ();
                 if (in_recent)
-                    model.set_sort_column_id (get_column_id_from_string ("modified"), Gtk.SortType.DESCENDING);
+                    model.set_sort_column_id (FM.ListModel.ColumnID.MODIFIED, Gtk.SortType.DESCENDING);
                 else if (slot.directory.file.info != null) {
                     model.set_sort_column_id (slot.directory.file.sort_column_id, slot.directory.file.sort_order);
                 }
@@ -1344,7 +1339,7 @@ namespace FM {
                 slot.refresh_files (); /* Force GOF files to switch between normal and large thumbnails */
             }
 
-            model.set_property ("size", icon_size);
+            model.icon_size = icon_size;
             change_zoom_level ();
         }
 
@@ -2192,7 +2187,9 @@ namespace FM {
             Gtk.SortType sort_order;
 
             if (model.get_sort_column_id (out sort_column_id, out sort_order)) {
-                GLib.Variant val = new GLib.Variant.string (get_string_from_column_id (sort_column_id));
+                // We need proper casting to not get int.to_string ()
+                var column_name = ((FM.ListModel.ColumnID) sort_column_id).to_string ();
+                GLib.Variant val = new GLib.Variant.string (column_name);
                 action_set_state (background_actions, "sort_by", val);
                 val = new GLib.Variant.boolean (sort_order == Gtk.SortType.DESCENDING);
                 action_set_state (background_actions, "reverse", val);
@@ -3353,47 +3350,6 @@ namespace FM {
 
         }
 
-        protected string get_string_from_column_id (int id) {
-            switch (id) {
-                case FM.ListModel.ColumnID.FILENAME:
-                    return "name";
-
-                case FM.ListModel.ColumnID.SIZE:
-                    return "size";
-
-                case FM.ListModel.ColumnID.TYPE:
-                    return "type";
-
-                case FM.ListModel.ColumnID.MODIFIED:
-                    return "modified";
-
-                default:
-                    warning ("column id not recognised - using 'name'");
-                    return "name";
-            }
-        }
-
-        protected int get_column_id_from_string (string col_name) {
-            switch (col_name) {
-                case "name":
-                    return FM.ListModel.ColumnID.FILENAME;
-
-                case "size":
-                    return FM.ListModel.ColumnID.SIZE;
-
-                case "type":
-                    return FM.ListModel.ColumnID.TYPE;
-
-                case "modified":
-                    return FM.ListModel.ColumnID.MODIFIED;
-
-                default:
-                    warning ("column name not recognised - using FILENAME");
-
-                return FM.ListModel.ColumnID.FILENAME;
-            }
-        }
-
         protected void on_sort_column_changed () {
             int sort_column_id = 0;
             Gtk.SortType sort_order = 0;
@@ -3412,7 +3368,8 @@ namespace FM {
 
             var info = new GLib.FileInfo ();
             var dir = slot.directory;
-            string sort_col_s = get_string_from_column_id (sort_column_id);
+            // We need proper casting to not get int.to_string ()
+            string sort_col_s = ((FM.ListModel.ColumnID) sort_column_id).to_string ();
             string sort_order_s = (sort_order == Gtk.SortType.DESCENDING ? "true" : "false");
             info.set_attribute_string ("metadata::marlin-sort-column-id", sort_col_s);
             info.set_attribute_string ("metadata::marlin-sort-reversed", sort_order_s);

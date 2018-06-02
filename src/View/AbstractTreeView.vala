@@ -196,15 +196,17 @@ namespace FM {
         protected override uint get_event_position_info (Gdk.EventButton event,
                                                          out Gtk.TreePath? path,
                                                          bool rubberband = false) {
-            Gtk.TreePath? p = null;
-            unowned Gtk.TreeViewColumn? c = null;
-            uint zone;
-            int x, y, cx, cy, depth;
+
             path = null;
 
             if (event.window != tree.get_bin_window ()) {
                 return ClickZone.INVALID;
             }
+
+            Gtk.TreePath? p = null;
+            unowned Gtk.TreeViewColumn? c = null;
+            uint zone = ClickZone.INVALID;
+            int x, y, cx, cy, depth;
 
             x = (int)event.x;
             y = (int)event.y;
@@ -218,17 +220,17 @@ namespace FM {
             path = p;
             depth = p != null ? p.get_depth () : 0;
 
-            /* Determine whether on edge of cell and designate as blank */
-            Gdk.Rectangle rect;
-            tree.get_cell_area (p, c, out rect);
-            int height = rect.height;
-
-            is_blank = is_blank || cy < 5 || cy > height - 5;
-
-            /* Do not allow rubberbanding to start except on a row in tree view */
-            zone = (p != null && is_blank ? ClickZone.BLANK_PATH : ClickZone.INVALID);
-
             if (p != null && c != null && c == name_column) {
+                /* Determine whether on edge of cell and designate as blank */
+                int height = 0;
+                Gdk.Rectangle rect;
+                tree.get_cell_area (p, c, out rect);
+                height = rect.height;
+
+                is_blank = is_blank || cy < 5 || cy > height - 5;
+                /* Do not allow rubberbanding to start except on a row in tree view */
+                zone = (p != null && is_blank ? ClickZone.BLANK_PATH : ClickZone.INVALID);
+
                 GOF.File? file = model.file_for_path (p);
 
                 if (file == null) {
